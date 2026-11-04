@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17212b">
+<title>順心車行 V2.0｜記帳系統雛形</title>
+<style>
+:root{--ink:#17212b;--muted:#667085;--line:#e6e9ee;--bg:#f4f6f8;--accent:#e5a900;--green:#16845b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#17212b;color:white;padding:18px max(16px,calc((100% - 1080px)/2))}header b{font-size:22px}header small{display:block;color:#c8d0d9;margin-top:4px}
+main{max-width:1080px;margin:18px auto;padding:0 14px 40px}.notice{background:#fff8e5;border:1px solid #f4dfa0;padding:12px;border-radius:10px;color:#6f5600;font-size:13px;margin-bottom:14px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:14px}h2{font-size:18px;margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+input,select{width:100%;padding:11px;border:1px solid #d5dae1;border-radius:9px;font-size:16px;background:white;color:var(--ink)}.field{margin-bottom:10px}
+button{border:0;border-radius:9px;padding:11px 14px;font-weight:650;cursor:pointer;background:#eef1f4;color:var(--ink)}.primary{background:var(--accent);color:#1d2329}.danger{background:#fff0ef;color:#a12b25}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tab.active{background:var(--ink);color:white}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}.metric{background:#f7f8fa;border:1px solid var(--line);border-radius:11px;padding:12px}.metric span{font-size:12px;color:var(--muted)}.metric strong{display:block;font-size:23px;margin-top:5px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:10px 7px;border-bottom:1px solid var(--line)}th{font-size:12px;color:var(--muted);white-space:nowrap}.tablewrap{overflow-x:auto}
+.muted{font-size:12px;color:var(--muted)}.hidden{display:none!important}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf7f2;color:var(--green);font-size:12px}
+@media(max-width:650px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}table{min-width:580px}}
+</style></head>
+<body>
+<header><b>🚕 順心車行 V2.0</b><small>司機登錄・請款對象・三層權限管理｜互動雛形</small></header>
+<main>
+<div class="notice"><b>原型測試提醒：</b>目前資料只存在這台裝置的瀏覽器（localStorage），登入角色僅供畫面流程測試，尚未具備真正的雲端同步、伺服器驗證或安全權限控管。請勿輸入真實個資或正式帳務。</div>
+<section id="login" class="panel"><h2>系統登入</h2>
+<div class="grid">
+<div class="field"><label>登入角色（測試用）</label><select id="role"><option value="driver">司機使用者</option><option value="viewer">數據檢視者</option><option value="owner">最高管理者</option></select></div>
+<div class="field"><label>使用者</label><select id="who"></select></div>
+<div class="field"><label>密碼（測試雛形）</label><input id="pw" type="password" placeholder="測試版輸入任意內容"></div></div>
+<div class="actions"><button class="primary" id="loginBtn">登入</button></div>
+<p class="muted">測試角色：司機可登錄趟次；數據檢視者可看報表；最高管理者可管理司機、檢視者、路線及請款對象。</p></section>
+<section id="app" class="hidden">
+<div class="actions" style="justify-content:space-between;margin-bottom:12px"><span id="session" class="pill"></span><button id="logout">登出</button></div>
+<div class="tabs" id="tabs"></div>
+<section id="entry" class="panel"><h2>新增一趟車資</h2><div class="grid">
+<div class="field"><label>司機</label><select id="tripDriver"></select></div><div class="field"><label>日期</label><input id="tripDate" type="date"></div>
+<div class="field"><label>請款對象</label><select id="payer"></select></div><div class="field"><label>固定路線</label><select id="route"><option value="">選擇路線或自行輸入</option><option value="custom">自訂路線</option></select></div>
+<div class="field"><label>上車地點</label><input id="from" placeholder="例如：日照中心"></div><div class="field"><label>下車地點</label><input id="to" placeholder="例如：田寮"></div>
+<div class="field"><label>車資（元）</label><input id="fare" type="number" min="1" step="1"></div></div>
+<div class="actions"><button class="primary" id="saveTrip">儲存乘車紀錄</button></div></section>
+<section id="reports" class="panel hidden"><h2>乘車及請款報表</h2><div class="grid">
+<div class="field"><label>請款對象</label><select id="filterPayer"><option value="">全部對象</option></select></div><div class="field"><label>司機</label><select id="filterDriver"><option value="">全部司機</option></select></div>
+<div class="field"><label>開始日期</label><input type="date" id="start"></div><div class="field"><label>結束日期</label><input type="date" id="end"></div></div>
+<div class="cards"><div class="metric"><span>趟次</span><strong id="count">0</strong></div><div class="metric"><span>車資總額</span><strong id="sum">$0</strong></div><div class="metric"><span>請款對象數</span><strong id="payerCount">0</strong></div></div>
+<div class="actions"><button id="apply">查詢</button><button id="csv">匯出 CSV（Excel 可開啟）</button></div>
+<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>日期</th><th>司機</th><th>請款對象</th><th>路線</th><th>金額</th></tr></thead><tbody id="tripRows"></tbody></table></div></section>
+<section id="manage" class="hidden">
+<div class="panel"><h2>司機名單管理</h2><div class="grid"><div class="field"><label>新增司機姓名</label><input id="newDriver" placeholder="輸入姓名"></div><div class="field"><label>初始密碼（示意）</label><input id="driverPass" placeholder="由管理者設定"></div></div><button class="primary" id="addDriver">新增司機</button><div id="drivers" class="actions"></div></div>
+<div class="panel"><h2>數據檢視者管理</h2><div class="grid"><div class="field"><label>新增檢視者姓名</label><input id="newViewer" placeholder="輸入姓名"></div><div class="field"><label>初始密碼（示意）</label><input id="viewerPass" placeholder="由管理者設定"></div></div><button class="primary" id="addViewer">新增檢視者</button><div id="viewers" class="actions"></div></div>
+<div class="panel"><h2>請款對象管理</h2><div class="grid"><div class="field"><label>新增請款對象</label><input id="newPayer" placeholder="例如：日照中心、緯創"></div><div class="field"><label>備註（選填）</label><input id="payerNote" placeholder="公司／機構／個人"></div></div><button class="primary" id="addPayer">新增請款對象</button><div id="payers" class="actions"></div></div>
+<div class="panel"><h2>固定路線與價格</h2><div class="grid"><div class="field"><label>上車地點</label><input id="routeFrom"></div><div class="field"><label>下車地點</label><input id="routeTo"></div><div class="field"><label>固定價格</label><input id="routeFare" type="number"></div></div><button class="primary" id="addRoute">新增固定路線</button><div id="routes" class="actions"></div></div>
+<div class="panel"><h2>管理者帳號</h2><p class="muted">正式版會由你設定專屬管理者帳號與密碼；此雛形不保存或驗證真實密碼。</p><div class="grid"><div class="field"><label>管理者帳號（示意）</label><input value="owner" disabled></div><div class="field"><label>權限</label><input value="最高管理者" disabled></div></div></div>
+</section></section>
+<p class="muted" style="text-align:center">順心車行 V2.0 互動雛形｜目前為單機展示版，非正式上線系統</p></main>
+<script>
+const $=id=>document.getElementById(id);
+const defaults={drivers:["王先生","李先生"],viewers:["會計檢視者"],payers:["日照中心","緯創","真善美幼兒園"],routes:[],trips:[]};
+let db;try{db=JSON.parse(localStorage.getItem("shunxin_v2_demo"))||defaults}catch(e){db=JSON.parse(JSON.stringify(defaults))}
+let role="driver",name="";
+function save(){localStorage.setItem("shunxin_v2_demo",JSON.stringify(db));render()}
+function opts(el,arr,first="請選擇"){el.innerHTML=`<option value="">${first}</option>`+arr.map(x=>`<option>${esc(x)}</option>`).join("")}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function refreshLogin(){opts($("who"),role==="driver"?db.drivers:role==="viewer"?db.viewers:["最高管理者"])}
+$("role").onchange=refreshLogin;refreshLogin();
+$("loginBtn").onclick=()=>{role=$("role").value;name=$("who").value;if(!name||!$("pw").value){alert("請選擇使用者並輸入密碼");return}if(role==="owner")name="最高管理者";$("login").classList.add("hidden");$("app").classList.remove("hidden");$("session").textContent=name+"｜"+({driver:"司機使用者",viewer:"數據檢視者",owner:"最高管理者"}[role]);buildTabs();render()};
+$("logout").onclick=()=>{$("app").classList.add("hidden");$("login").classList.remove("hidden");$("pw").value=""};
+function buildTabs(){let t=role==="driver"?[["entry","司機登錄"]]:role==="viewer"?[["reports","數據報表"]]:[["entry","乘車登錄"],["reports","報表查詢"],["manage","後台管理"]];$("tabs").innerHTML=t.map((x,i)=>`<button class="tab ${i===0?"active":""}" data-id="${x[0]}">${x[1]}</button>`).join("");$("tabs").querySelectorAll("button").forEach(b=>b.onclick=()=>showTab(b.dataset.id));showTab(t[0][0])}
+function showTab(id){["entry","reports","manage"].forEach(x=>$(x).classList.toggle("hidden",x!==id));$("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.id===id))}
+function render(){opts($("tripDriver"),role==="driver"?[name]:db.drivers,"選擇司機");if(role==="driver")$("tripDriver").value=name;opts($("payer"),db.payers,"選擇請款對象");$("route").innerHTML='<option value="">選擇固定路線或自訂</option>'+db.routes.map((r,i)=>`<option value="${i}">${esc(r.from)} → ${esc(r.to)}（$${r.fare}）</option>`).join("")+'<option value="custom">自訂路線</option>';opts($("filterPayer"),db.payers,"全部對象");opts($("filterDriver"),db.drivers,"全部司機");$("drivers").innerHTML=db.drivers.map(x=>`<span class="pill">${esc(x)}</span>`).join(" ");$("viewers").innerHTML=db.viewers.map(x=>`<span class="pill">${esc(x)}</span>`).join(" ");$("payers").innerHTML=db.payers.map((x,i)=>`<span class="pill">${esc(x)} <button class="danger" onclick="removePayer(${i})">停用</button></span>`).join(" ");$("routes").innerHTML=db.routes.map((r,i)=>`<span class="pill">${esc(r.from)}→${esc(r.to)} $${r.fare} <button class="danger" onclick="db.routes.splice(${i},1);save()">刪除</button></span>`).join(" ");renderTrips()}
+function renderTrips(){let rows=db.trips.filter(t=>(role!=="driver"||t.driver===name)&&(!$("filterPayer").value||t.payer===$("filterPayer").value)&&(!$("filterDriver").value||t.driver===$("filterDriver").value)&&(!$("start").value||t.date>=$("start").value)&&(!$("end").value||t.date<=$("end").value));$("count").textContent=rows.length;$("sum").textContent="$"+rows.reduce((s,t)=>s+t.fare,0).toLocaleString();$("payerCount").textContent=new Set(rows.map(t=>t.payer)).size;$("tripRows").innerHTML=rows.map(t=>`<tr><td>${t.date}</td><td>${esc(t.driver)}</td><td>${esc(t.payer)}</td><td>${esc(t.from)} → ${esc(t.to)}</td><td>$${t.fare}</td></tr>`).join("")}
+$("route").onchange=()=>{let r=db.routes[+$("route").value];if(r){$("from").value=r.from;$("to").value=r.to;$("fare").value=r.fare}};
+$("saveTrip").onclick=()=>{let driver=role==="driver"?name:$("tripDriver").value,date=$("tripDate").value,payer=$("payer").value,from=$("from").value.trim(),to=$("to").value.trim(),fare=+$("fare").value;if(!driver||!date||!payer||!from||!to||fare<=0){alert("請完整填寫日期、司機、請款對象、路線及金額");return}db.trips.push({driver,date,payer,from,to,fare});$("from").value=$("to").value=$("fare").value="";save();alert("已新增測試紀錄")};
+$("addDriver").onclick=()=>{let v=$("newDriver").value.trim();if(v&&!db.drivers.includes(v)){db.drivers.push(v);$("newDriver").value="";save()}};
+$("addViewer").onclick=()=>{let v=$("newViewer").value.trim();if(v&&!db.viewers.includes(v)){db.viewers.push(v);$("newViewer").value="";save()}};
+$("addPayer").onclick=()=>{let v=$("newPayer").value.trim();if(v&&!db.payers.includes(v)){db.payers.push(v);$("newPayer").value="";save()}};
+window.removePayer=i=>{if(confirm("停用此請款對象？既有紀錄會保留。")){db.payers.splice(i,1);save()}};
+$("addRoute").onclick=()=>{let from=$("routeFrom").value.trim(),to=$("routeTo").value.trim(),fare=+$("routeFare").value;if(from&&to&&fare>0){db.routes.push({from,to,fare});$("routeFrom").value=$("routeTo").value=$("routeFare").value="";save()}};
+$("apply").onclick=renderTrips;
+$("csv").onclick=()=>{let rows=[["日期","司機","請款對象","上車地點","下車地點","車資"],...db.trips.filter(t=>(!$("filterPayer").value||t.payer===$("filterPayer").value)&&(!$("filterDriver").value||t.driver===$("filterDriver").value)&&(!$("start").value||t.date>=$("start").value)&&(!$("end").value||t.date<=$("end").value)).map(t=>[t.date,t.driver,t.payer,t.from,t.to,t.fare])];let csv="\ufeff"+rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\r\n");let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="順心車行請款明細.csv";a.click();URL.revokeObjectURL(a.href)};
+$("tripDate").value=new Date().toISOString().slice(0,10);
+</script></body></html>
