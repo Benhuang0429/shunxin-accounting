@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>順心車行 V3.0</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f3f6f9;color:#172b3a;margin:0}header{background:#174c78;color:white;padding:18px}main{max-width:950px;margin:18px auto;padding:0 12px}.card{background:white;border:1px solid #dce4eb;border-radius:12px;padding:16px;margin:12px 0}label{display:block;margin:10px 0 5px;font-size:14px}input,select,button{box-sizing:border-box;width:100%;padding:11px;border:1px solid #cbd5df;border-radius:8px;font:inherit}button{background:#174c78;color:white;border:0;margin-top:10px;font-weight:600}.secondary{background:#e8eef4;color:#174c78}.danger{background:#a52d36}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{width:auto}.hidden{display:none}.muted{color:#64748b;font-size:13px}.stats{font-size:22px;font-weight:bold}.table{overflow:auto}table{border-collapse:collapse;width:100%;min-width:600px}td,th{text-align:left;border-bottom:1px solid #ddd;padding:9px;font-size:14px}
+</style>
+<header><b>🚕 順心車行 V3.0</b><div>本機測試版｜載客・代駕・司機月結</div></header><main>
+<section id="login" class="card"><h2>系統登入</h2><p class="muted">第一次使用先建立最高管理者密碼。此版本資料只存在目前瀏覽器，尚未連雲端。</p><label>帳號</label><input id="user" placeholder="帳號"><label>密碼</label><input id="pass" type="password" placeholder="密碼"><button onclick="login()">登入</button><p id="msg" class="muted"></p></section>
+<section id="app" class="hidden"><p id="session"></p><nav class="tabs" id="tabs"></nav><div id="view"></div><button class="secondary" onclick="logout()">登出</button></section>
+</main>
+<script>
+const K='shunxin_v3_demo_latest';let db=JSON.parse(localStorage.getItem(K)||'null'),me=null,editing=null;
+if(!db)db={users:[{id:'admin',name:'最高管理者',username:'BNHUANG0429',password:'',role:'admin'}],routes:[],customers:[],trips:[]};
+function save(){localStorage.setItem(K,JSON.stringify(db))}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function login(){let u=user.value.trim(),p=pass.value;let a=db.users.find(x=>x.username===u);if(!a){if(u.toLowerCase()==='bnhuang0429'&&!db.users.find(x=>x.role==='admin'&&x.password)){let pw=prompt('首次使用，請設定最高管理者密碼');if(!pw)return;db.users[0].password=pw;save();msg.textContent='管理者密碼已設定，請重新登入';return}msg.textContent='帳號或密碼錯誤';return}if(a.password!==p){msg.textContent='帳號或密碼錯誤';return}me=a;loginBox()}
+function loginBox(){login.classList.add('hidden');app.classList.remove('hidden');session.textContent=me.name+'｜'+({admin:'最高管理者',driver:'司機',viewer:'數據檢視者'}[me.role]);build()}
+function logout(){me=null;app.classList.add('hidden');login.classList.remove('hidden');pass.value=''}
+function build(){let t=me.role==='driver'?[['entry','新增記帳'],['mine','我的本月紀錄']]:me.role==='viewer'?[['report','數據報表']]:[['report','月結報表'],['users','司機與帳號'],['routes','路線與價格'],['customers','請款對象']];tabs.innerHTML=t.map(x=>`<button onclick="show('${x[0]}')">${x[1]}</button>`).join('');show(t[0][0])}
+function show(k){if(k==='entry')entry();if(k==='mine')mine();if(k==='report')report();if(k==='users')users();if(k==='routes')routes();if(k==='customers')customers()}
+function panel(s){view.innerHTML=s}
+function today(){return new Date().toLocaleDateString('en-CA')}
+function money(n){return '$'+Number(n||0).toLocaleString('zh-TW')}
+function entry(){let t=db.trips.find(x=>x.id===editing),from=t?.from||'',to=t?.to||'';panel(`<div class="card"><h2>${t?'修改':'新增'}乘車紀錄</h2><div class="grid">
+<div><label>日期</label><input id="date" type="date" value="${t?.date||today()}"></div><div><label>司機</label><input disabled value="${esc(me.name)}"></div>
+<div><label>起點（可輸入或選擇）</label><input id="from" list="froms" value="${esc(from)}"><datalist id="froms">${[...new Set(db.routes.map(r=>r.from))].map(x=>`<option>${esc(x)}</option>`).join('')}</datalist></div>
+<div><label>終點（可輸入或選擇）</label><input id="to" list="tos" value="${esc(to)}"><datalist id="tos">${[...new Set(db.routes.map(r=>r.to))].map(x=>`<option>${esc(x)}</option>`).join('')}</datalist></div>
+<div><label>任務類型</label><select id="task"><option ${t?.task==='載客'?'selected':''}>載客</option><option ${t?.task==='代駕'?'selected':''}>代駕</option></select></div>
+<div><label>車資（可手動修改）</label><input id="fare" type="number" min="0" value="${t?.fare??''}"></div>
+<div><label>請款對象</label><select id="customer"><option value="">不指定</option>${db.customers.map(c=>`<option ${t?.customer===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div></div>
+<button onclick="saveTrip()">儲存紀錄</button>${t?'<button class="secondary" onclick="editing=null;entry()">取消</button>':''}<p class="muted">輸入起點及終點後，如符合管理者設定的固定路線，會自動帶入價格；仍可自行修改車資。</p></div>`);
+if(!t){from.onchange=from.oninput=fillPrice;to.onchange=to.oninput=fillPrice}}
+function fillPrice(){let r=db.routes.find(x=>x.from===from.value.trim()&&x.to===to.value.trim());if(r)fare.value=r.price}
+function saveTrip(){let f=from.value.trim(),t=to.value.trim(),v=Number(fare.value);if(!date.value||!f||!t||fare.value===''||!Number.isFinite(v)||v<0)return alert('請填寫日期、起點、終點及車資');let o={id:editing||String(Date.now()),date:date.value,from:f,to:t,route:f+'－'+t,task:task.value,fare:v,customer:customer.value,driverId:me.id,driver:me.name};if(editing){let i=db.trips.findIndex(x=>x.id===editing);if(i>=0)db.trips[i]=o}else db.trips.push(o);editing=null;save();alert('已儲存');mine()}
+function mine(){let a=db.trips.filter(x=>x.driverId===me.id&&x.date.slice(0,7)===today().slice(0,7)).sort((x,y)=>y.date.localeCompare(x.date));panel(`<div class="card"><h2>我的本月紀錄</h2><p>趟次：<b>${a.length}</b>　總金額：<b>${money(a.reduce((s,x)=>s+x.fare,0))}</b></p><div class="table"><table><tr><th>日期</th><th>類型</th><th>起點－終點</th><th>請款對象</th><th>金額</th><th>操作</th></tr>${a.map(x=>`<tr><td>${x.date}</td><td>${esc(x.task)}</td><td>${esc(x.from)}－${esc(x.to)}</td><td>${esc(x.customer)}</td><td>${money(x.fare)}</td><td><button onclick="editing='${x.id}';entry()">修改</button><button class="danger" onclick="delTrip('${x.id}')">刪除</button></td></tr>`).join('')}</table></div></div>`)}
+function delTrip(id){if(confirm('確定刪除這筆紀錄？')){db.trips=db.trips.filter(x=>x.id!==id);save();mine()}}
+function report(){let a=db.trips;panel(`<div class="card"><h2>月結與報表</h2><label>月份</label><input id="month" type="month" value="${today().slice(0,7)}"><button onclick="reportRows()">查詢</button><div id="reportRows"></div></div>`);reportRows()}
+function reportRows(){let m=month.value,a=db.trips.filter(x=>x.date.startsWith(m)),groups={};a.forEach(x=>(groups[x.driver]??=[]).push(x));let rows=Object.entries(groups).map(([n,x])=>`<tr><td>${esc(n)}</td><td>${x.length}</td><td>${money(x.reduce((s,t)=>s+t.fare,0))}</td></tr>`).join('');document.getElementById('reportRows').innerHTML=`<p>全車趟次 ${a.length}｜總額 ${money(a.reduce((s,x)=>s+x.fare,0))}</p><table><tr><th>司機</th><th>趟次</th><th>總金額</th></tr>${rows}</table><button onclick="exportCSV('${m}')">匯出月結 CSV</button>`}
+function exportCSV(m){let a=db.trips.filter(x=>x.date.startsWith(m)),rows=[['日期','司機','任務類型','起點','終點','請款對象','車資'],...a.map(x=>[x.date,x.driver,x.task,x.from,x.to,x.customer,x.fare])];let csv='\ufeff'+rows.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),z=document.createElement('a');z.href=u;z.download='順心車行_'+m+'_月結.csv';z.click();URL.revokeObjectURL(u)}
+function users(){panel(`<div class="card"><h2>新增司機</h2><label>姓名</label><input id="nName"><label>登入帳號</label><input id="nUser"><label>密碼</label><input id="nPass" type="password"><button onclick="addUser()">新增司機</button><h3>帳號清單</h3>${db.users.filter(x=>x.role==='driver').map(x=>`<p>${esc(x.name)}（${esc(x.username)}）</p>`).join('')}</div>`)}
+function addUser(){if(!nName.value.trim()||!nUser.value.trim()||!nPass.value)return alert('請填妥資料');db.users.push({id:'d'+Date.now(),name:nName.value.trim(),username:nUser.value.trim(),password:nPass.value,role:'driver'});save();users()}
+function routes(){panel(`<div class="card"><h2>固定路線與價格</h2><label>起點</label><input id="rf"><label>終點</label><input id="rt"><label>固定車資</label><input id="rp" type="number"><button onclick="addRoute()">新增固定路線</button>${db.routes.map((r,i)=>`<p>${esc(r.from)} → ${esc(r.to)}：${money(r.price)} <button class="danger" onclick="db.routes.splice(${i},1);save();routes()">刪除</button></p>`).join('')}</div>`)}
+function addRoute(){if(!rf.value.trim()||!rt.value.trim()||rp.value==='')return alert('請填妥起點、終點、價格');db.routes.push({from:rf.value.trim(),to:rt.value.trim(),price:Number(rp.value)});save();routes()}
+function customers(){panel(`<div class="card"><h2>請款對象管理</h2><label>新增名稱</label><input id="cn"><button onclick="if(cn.value.trim()){db.customers.push(cn.value.trim());save();customers()}">新增</button>${db.customers.map((x,i)=>`<p>${esc(x)} <button class="danger" onclick="db.customers.splice(${i},1);save();customers()">刪除</button></p>`).join('')}</div>`)}
+save();
+</script></html>
