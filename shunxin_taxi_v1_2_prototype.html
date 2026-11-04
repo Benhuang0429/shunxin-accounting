@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17212b">
+<title>順心車行｜客戶車資流水帳</title>
+<style>
+:root{--ink:#17212b;--muted:#667085;--line:#e6e9ee;--bg:#f4f6f8;--accent:#e5a900;--green:#16845b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#17212b;color:white;padding:20px max(18px,calc((100% - 1050px)/2));}
+header .sub{color:#c8d0d9;font-size:13px;margin-top:5px}
+main{max-width:1050px;margin:20px auto;padding:0 14px 40px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}.tab,button{border:0;border-radius:10px;padding:11px 15px;font-weight:650;cursor:pointer}
+.tab{background:white;color:var(--ink);border:1px solid var(--line)}.tab.active{background:var(--ink);color:white}
+.panel{background:white;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:15px}
+h2{font-size:19px;margin:0 0 15px}h3{font-size:15px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input,select{width:100%;padding:12px;border:1px solid #d5dae1;border-radius:10px;font-size:16px;background:white;color:var(--ink)}
+.field{margin-bottom:12px}.primary{background:var(--accent);color:#1d2329;width:100%;font-size:16px;padding:14px}
+.secondary{background:#eef1f4;color:var(--ink)}.danger{background:#fff0ef;color:#a12b25;padding:7px 10px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:15px}
+.metric{background:#f7f8fa;border:1px solid var(--line);border-radius:13px;padding:14px}
+.metric span{font-size:12px;color:var(--muted)}.metric strong{display:block;font-size:25px;margin-top:6px;font-variant-numeric:tabular-nums}
+.toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:12px;white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}.route{font-weight:650}.muted{color:var(--muted);font-size:12px}.empty{text-align:center;color:var(--muted);padding:28px}
+.hidden{display:none}.notice{background:#fff8e5;border:1px solid #f4dfa0;padding:11px 13px;border-radius:10px;color:#6f5600;font-size:13px;margin-bottom:14px}
+.pill{display:inline-block;background:#edf7f2;color:var(--green);border-radius:20px;padding:4px 8px;font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{padding:10px 12px}
+@media(max-width:680px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.toolbar{grid-template-columns:1fr 1fr}table{min-width:650px}.tablewrap{overflow-x:auto}.metric strong{font-size:22px}}
+</style></head>
+<body>
+<header><div style="max-width:1050px;margin:auto"><div style="font-size:22px;font-weight:800">🚕 順心車行</div><div class="sub">客戶車資流水帳｜司機登錄・車行統一查詢</div></div></header>
+<main>
+<div class="notice">試用原型：資料暫存在目前這台裝置的瀏覽器。尚未連接雲端，其他司機的手機不會自動同步。請先用測試資料體驗。</div>
+<div class="tabs"><button class="tab active" data-tab="entry">司機登錄</button><button class="tab" data-tab="admin">車行管理後台</button></div>
+<section id="entry" class="panel">
+<h2>新增一趟車資</h2>
+<form id="tripForm">
+<div class="grid">
+<div class="field"><label for="driver">司機（下拉選擇）</label><select id="driver" required><option value="">請選擇司機</option></select></div>
+<div class="field"><label for="date">日期</label><input id="date" type="date" required></div>
+<div class="field"><label for="routeSelect">固定路線（選擇後自動帶入價格）</label><select id="routeSelect"><option value="">選擇固定路線，或自行輸入</option><option value="custom">自訂路線</option></select></div>
+<div class="field"><label for="from">上車地點</label><input id="from" placeholder="例如：日照中心" required></div>
+<div class="field"><label for="to">下車地點</label><input id="to" placeholder="例如：田寮" required></div>
+<div class="field"><label for="fare">車資（元）</label><input id="fare" type="number" min="1" step="1" placeholder="選擇固定路線後自動帶入，也可修改" required></div>
+</div>
+<button class="primary" type="submit">＋ 儲存這筆車資</button>
+</form></section>
+<section id="admin" class="hidden">
+<div class="cards">
+<div class="metric"><span>符合條件的總趟次</span><strong id="tripCount">0</strong></div>
+<div class="metric"><span>車資總額</span><strong id="fareTotal">$0</strong></div>
+<div class="metric"><span>登錄司機數</span><strong id="driverCount">0</strong></div>
+</div>
+<div class="panel">
+<h2>查詢條件</h2>
+<div class="toolbar">
+<div><label for="month">月份</label><input id="month" type="month"></div>
+<div><label for="driverFilter">司機</label><select id="driverFilter"><option value="">全部司機</option></select></div>
+<div><label for="startDate">開始日期</label><input id="startDate" type="date"></div>
+<div><label for="endDate">結束日期</label><input id="endDate" type="date"></div>
+</div>
+<div class="actions" style="margin-top:12px"><button class="secondary" id="clearFilters">清除日期條件</button><button class="secondary" id="exportCsv">匯出 Excel 可開啟的 CSV</button></div>
+</div>
+<div class="panel">
+<h2>司機名單管理</h2>
+<p class="muted">在這裡新增或移除司機姓名；新增後會出現在司機登錄頁面的下拉選單。</p>
+<form id="driverForm" class="grid">
+<div class="field"><label for="newDriver">新增司機姓名</label><input id="newDriver" placeholder="輸入司機姓名" required></div>
+<div class="field" style="display:flex;align-items:end"><button class="primary" type="submit">＋ 新增司機</button></div>
+</form>
+<div id="driverList" class="actions" style="margin-top:10px"></div>
+</div>
+<div class="panel"><h2>固定路線與價格設定</h2><p class="muted">在管理後台新增常用路線及固定車資；司機登錄時選擇路線，就會自動帶入上、下車地點與價格。</p><form id="routeForm"><div class="grid"><div class="field"><label for="routeFrom">上車地點</label><input id="routeFrom" placeholder="例如：日照中心" required></div><div class="field"><label for="routeTo">下車地點</label><input id="routeTo" placeholder="例如：田寮" required></div><div class="field"><label for="routeFare">固定價格（元）</label><input id="routeFare" type="number" min="1" step="1" placeholder="例如：250" required></div></div><button class="primary" type="submit">＋ 新增固定路線</button></form><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>固定路線</th><th class="num">價格</th><th></th></tr></thead><tbody id="fixedRouteRows"></tbody></table></div><div id="noFixedRoutes" class="empty">尚未設定固定路線</div></div>
+<div class="panel">
+<h2>載客紀錄</h2>
+<div class="tablewrap"><table><thead><tr><th>日期</th><th>司機</th><th>行程</th><th class="num">車資</th><th></th></tr></thead><tbody id="tripRows"></tbody></table></div>
+<div id="noRows" class="empty">目前沒有符合條件的紀錄</div>
+</div>
+<div class="panel">
+<h2>路線統計</h2>
+<div class="tablewrap"><table><thead><tr><th>路線</th><th class="num">趟次</th><th class="num">總金額</th></tr></thead><tbody id="routeRows"></tbody></table></div>
+<div id="noRoutes" class="empty">尚無路線統計</div>
+</div>
+</section>
+<p class="muted" style="text-align:center">順心車行 V1.0 試用原型 · 不含司機薪資、抽成或個人收入報表</p>
+</main>
+<script>
+const KEY='shunxin_taxi_prototype_v1';
+const ROUTE_KEY='shunxin_taxi_fixed_routes_v1';
+const DRIVER_KEY='shunxin_taxi_drivers_v1';
+let trips=[];let fixedRoutes=[];let drivers=[];try{trips=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
+try{fixedRoutes=JSON.parse(localStorage.getItem(ROUTE_KEY)||'[]')}catch(e){}
+try{drivers=JSON.parse(localStorage.getItem(DRIVER_KEY)||'null')||['黃建彬','松諺','鄭鈞','傑','阿勝','阿灣','阿胖']}catch(e){drivers=['黃建彬','松諺','鄭鈞','傑','阿勝','阿灣','阿胖']}
+const $=id=>document.getElementById(id);
+const money=n=>'$'+Number(n).toLocaleString('zh-TW');
+$('date').value=new Date().toLocaleDateString('en-CA');
+$('month').value=new Date().toLocaleDateString('en-CA').slice(0,7);
+function save(){localStorage.setItem(KEY,JSON.stringify(trips))}
+function saveRoutes(){localStorage.setItem(ROUTE_KEY,JSON.stringify(fixedRoutes));renderRouteOptions();renderFixedRoutes()}
+function saveDrivers(){localStorage.setItem(DRIVER_KEY,JSON.stringify(drivers));renderDrivers();render()}
+function renderDrivers(){
+ $('driver').innerHTML='<option value="">請選擇司機</option>'+drivers.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+ $('driverList').innerHTML=drivers.map(d=>`<span class="pill">${esc(d)} <button type="button" class="danger" style="margin-left:5px" onclick="deleteDriver('${encodeURIComponent(d)}')">移除</button></span>`).join('');
+}
+$('driverForm').addEventListener('submit',e=>{
+ e.preventDefault();const name=$('newDriver').value.trim();
+ if(!name)return;
+ if(drivers.includes(name)){alert('這位司機已經在名單內');return}
+ drivers.push(name);drivers.sort((a,b)=>a.localeCompare(b,'zh-Hant'));$('newDriver').value='';saveDrivers();
+});
+window.deleteDriver=encoded=>{
+ const name=decodeURIComponent(encoded);
+ if(trips.some(t=>t.driver===name)){alert('這位司機已有載客紀錄，為避免歷史資料失去對應，暫時不能移除。');return}
+ if(confirm('確定從司機選單移除 '+name+'？')){drivers=drivers.filter(d=>d!==name);saveDrivers()}
+};
+function renderRouteOptions(){const current=$('routeSelect').value;$('routeSelect').innerHTML='<option value="">選擇固定路線，或自行輸入</option>'+fixedRoutes.map(r=>`<option value="${r.id}">${esc(r.from)} → ${esc(r.to)}（${money(r.fare)}）</option>`).join('')+'<option value="custom">自訂路線</option>';if(fixedRoutes.some(r=>String(r.id)===current)||current==='custom')$('routeSelect').value=current}
+function renderFixedRoutes(){$('fixedRouteRows').innerHTML=fixedRoutes.map(r=>`<tr><td>${esc(r.from)} → ${esc(r.to)}</td><td class="num">${money(r.fare)}</td><td><button class="danger" onclick="deleteFixedRoute(${r.id})">刪除</button></td></tr>`).join('');$('noFixedRoutes').style.display=fixedRoutes.length?'none':'block'}
+$('routeSelect').addEventListener('change',()=>{const r=fixedRoutes.find(x=>String(x.id)===$('routeSelect').value);if(r){$('from').value=r.from;$('to').value=r.to;$('fare').value=r.fare}else if($('routeSelect').value==='custom'){$('from').value='';$('to').value='';$('fare').value=''}});
+$('routeForm').addEventListener('submit',e=>{e.preventDefault();const from=$('routeFrom').value.trim(),to=$('routeTo').value.trim(),fare=Number($('routeFare').value);if(!from||!to||fare<=0)return;const existing=fixedRoutes.find(r=>r.from===from&&r.to===to);if(existing){existing.fare=fare}else{fixedRoutes.push({id:Date.now(),from,to,fare})}saveRoutes();e.target.reset()});
+window.deleteFixedRoute=id=>{if(confirm('確定刪除此固定路線？')){fixedRoutes=fixedRoutes.filter(r=>r.id!==id);saveRoutes()}};
+function switchTab(name){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));$('entry').classList.toggle('hidden',name!=='entry');$('admin').classList.toggle('hidden',name!=='admin');if(name==='admin')render()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+$('tripForm').addEventListener('submit',e=>{e.preventDefault();const t={id:Date.now(),driver:$('driver').value,date:$('date').value,from:$('from').value.trim(),to:$('to').value.trim(),fare:Number($('fare').value)};if(!t.driver||!t.from||!t.to||!t.date||t.fare<=0)return;trips.unshift(t);save();e.target.reset();$('date').value=new Date().toLocaleDateString('en-CA');$('routeSelect').value='';alert('車資已新增（儲存在本裝置）');});
+function filtered(){return trips.filter(t=>(!$('month').value||t.date.startsWith($('month').value))&&(!$('driverFilter').value||t.driver===$('driverFilter').value)&&(!$('startDate').value||t.date>=$('startDate').value)&&(!$('endDate').value||t.date<=$('endDate').value)).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id)}
+function render(){renderDrivers();renderRouteOptions();renderFixedRoutes();const ds=[...new Set([...drivers,...trips.map(t=>t.driver)])].sort();const old=$('driverFilter').value;$('driverFilter').innerHTML='<option value="">全部司機</option>'+ds.map(d=>`<option>${esc(d)}</option>`).join('');$('driverFilter').value=ds.includes(old)?old:'';const list=filtered();$('tripCount').textContent=list.length;$('fareTotal').textContent=money(list.reduce((s,t)=>s+t.fare,0));$('driverCount').textContent=new Set(list.map(t=>t.driver)).size;$('tripRows').innerHTML=list.map(t=>`<tr><td>${t.date}</td><td>${esc(t.driver)}</td><td><span class="route">${esc(t.from)} → ${esc(t.to)}</span></td><td class="num">${money(t.fare)}</td><td><button class="danger" onclick="removeTrip(${t.id})">刪除</button></td></tr>`).join('');$('noRows').style.display=list.length?'none':'block';const groups={};list.forEach(t=>{const k=t.from+' → '+t.to;(groups[k]??={count:0,total:0}).count++;groups[k].total+=t.fare});const routes=Object.entries(groups).sort((a,b)=>b[1].total-a[1].total);$('routeRows').innerHTML=routes.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${v.count}</td><td class="num">${money(v.total)}</td></tr>`).join('');$('noRoutes').style.display=routes.length?'none':'block'}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+window.removeTrip=id=>{if(confirm('確定刪除這筆紀錄？')){trips=trips.filter(t=>t.id!==id);save();render()}}
+renderDrivers();
+['month','driverFilter','startDate','endDate'].forEach(id=>$(id).addEventListener('change',render));
+$('clearFilters').onclick=()=>{$('month').value='';$('startDate').value='';$('endDate').value='';$('driverFilter').value='';render()};
+$('exportCsv').onclick=()=>{const list=filtered();const rows=[['日期','司機','上車地點','下車地點','車資'],...list.map(t=>[t.date,t.driver,t.from,t.to,t.fare])];const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='順心車行_'+($('month').value||'查詢結果')+'.csv';a.click();URL.revokeObjectURL(a.href)};
+</script></body></html>
