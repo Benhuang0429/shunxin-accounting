@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🚕順心車行記帳系統🚕</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172b3a;background:#f3f6f9}
+*{box-sizing:border-box}body{margin:0}header{background:#174c78;color:#fff;padding:18px}
+main{max-width:1050px;margin:18px auto;padding:0 12px}.card{background:#fff;border:1px solid #dce4eb;border-radius:12px;padding:16px;margin:12px 0}
+label{display:block;margin:10px 0 5px;font-size:14px}input,select,button{width:100%;padding:11px;border:1px solid #cbd5df;border-radius:8px;font:inherit;background:#fff}
+button{background:#174c78;color:#fff;border:0;margin-top:10px;font-weight:600;cursor:pointer}.secondary{background:#e8eef4;color:#174c78}.danger{background:#a52d36}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{width:auto}
+.hidden{display:none}.muted{color:#64748b;font-size:13px}.stats{font-size:22px;font-weight:bold}.table{overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:620px}td,th{text-align:left;border-bottom:1px solid #ddd;padding:9px;font-size:14px}
+.actions{display:flex;gap:6px}.actions button{width:auto;padding:7px 10px}.notice{padding:10px;background:#fff7df;border-radius:8px;color:#795b12;font-size:13px}
+</style>
+</head>
+<body>
+<header><b>🚕順心車行記帳系統🚕</b></header>
+<main>
+<section id="login" class="card">
+<h2>系統登入</h2>
+<p class="muted">請使用管理者或司機帳號登入。此版本資料仍儲存在目前瀏覽器。</p>
+<label>帳號</label><input id="user" autocomplete="username" placeholder="帳號">
+<label>密碼</label><input id="pass" type="password" autocomplete="current-password" placeholder="密碼">
+<button onclick="login()">登入</button>
+<button class="secondary" onclick="requestPasswordReset()">忘記密碼／申請重設</button>
+<p id="msg" class="muted"></p>
+</section>
+<section id="app" class="hidden"><p id="session"></p><nav class="tabs" id="tabs"></nav><div id="view"></div><button class="secondary" onclick="logout()">登出</button></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const K='shunxin_v3_demo_latest';
+let db=JSON.parse(localStorage.getItem(K)||'null'),me=null,editing=null;
+if(!db) db={users:[{id:'admin',name:'最高管理者',username:'admin',password:'1234',role:'admin'}],routes:[],customers:[],trips:[]};
+db.users??=[];db.routes??=[];db.customers??=[];db.trips??=[];db.resetRequests??=[];
+let admin=db.users.find(x=>x.role==='admin');
+if(!admin){admin={id:'admin',name:'最高管理者',username:'admin',password:'1234',role:'admin'};db.users.unshift(admin)}
+if(admin.username==='BNHUANG0429'&&!admin.password){admin.username='admin';admin.password='1234'}
+function save(){localStorage.setItem(K,JSON.stringify(db))}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function roleName(r){return ({admin:'最高管理者',driver:'司機',viewer:'報表檢視者'})[r]||r}
+function login(){let u=$('user').value.trim(),p=$('pass').value,a=db.users.find(x=>x.username===u);if(!a||a.password!==p){$('msg').textContent='帳號或密碼錯誤';return}me=a;loginBox()}
+function loginBox(){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('session').textContent=me.name+'｜'+roleName(me.role);build()}
+function logout(){me=null;$('app').classList.add('hidden');$('login').classList.remove('hidden');$('pass').value='';$('msg').textContent=''}
+function build(){let t=me.role==='driver'?[['entry','新增記帳'],['mine','我的本月紀錄'],['settings','帳號設定']]:me.role==='viewer'?[['report','數據報表'],['settings','帳號設定']]:[['report','月結與報表'],['users','帳號與權限'],['routes','固定路線與價格'],['customers','請款對象'],['backup','資料備份／還原'],['settings','帳號設定']];$('tabs').innerHTML=t.map(x=>`<button onclick="show('${x[0]}')">${x[1]}</button>`).join('');show(t[0][0])}
+function show(k){if(k==='entry')entry();if(k==='mine')mine();if(k==='report')report();if(k==='users')users();if(k==='routes')routes();if(k==='customers')customers();if(k==='backup')backup();if(k==='settings')settings()}
+function panel(s){$('view').innerHTML=s}
+function today(){return new Date().toLocaleDateString('en-CA')}
+function money(n){return '$'+Number(n||0).toLocaleString('zh-TW')}
+function routeOptions(selected){return '<option value="">請選擇固定路線</option>'+db.routes.map((r,i)=>`<option value="${i}" ${selected===i?'selected':''}>${esc(r.from)} → ${esc(r.to)}（${money(r.price)}）</option>`).join('')}
+function entry(){
+ let t=db.trips.find(x=>x.id===editing),fromValue=t?.from||'',toValue=t?.to||'';
+ let origins=[...new Set(db.routes.map(r=>r.from).filter(Boolean))];
+ let destinations=[...new Set(db.routes.map(r=>r.to).filter(Boolean))];
+ if(fromValue&&!origins.includes(fromValue))origins.unshift(fromValue);
+ if(toValue&&!destinations.includes(toValue))destinations.unshift(toValue);
+ let fromOptions='<option value="">請選擇出發地</option>'+origins.map(x=>`<option value="${esc(x)}" ${x===fromValue?'selected':''}>${esc(x)}</option>`).join('');
+ let toOptions='<option value="">請選擇目的地</option>'+destinations.map(x=>`<option value="${esc(x)}" ${x===toValue?'selected':''}>${esc(x)}</option>`).join('');
+ let field=(key,label,options,value)=>`<div><label>${label}輸入方式</label>
+ <select id="${key}Mode" onchange="setLocationMode('${key}')"><option value="select">下拉選單</option><option value="manual">手動輸入</option></select>
+ <select id="${key}Select" onchange="fillPrice()">${options}</select>
+ <input id="${key}Manual" value="${esc(value)}" placeholder="請輸入${label}" style="display:none" oninput="fillPrice()"></div>`;
+ panel(`<div class="card"><h2>${t?'修改':'新增'}乘車紀錄</h2><div class="grid">
+ <div><label>日期</label><input id="date" type="date" value="${t?.date||today()}"></div>
+ <div><label>司機</label><input disabled value="${esc(me.name)}"></div>
+ ${field('from','出發地',fromOptions,fromValue)}
+ ${field('to','目的地',toOptions,toValue)}
+ <div><label>任務類型</label><select id="task"><option ${t?.task==='載客'?'selected':''}>載客</option><option ${t?.task==='代駕'?'selected':''}>代駕</option></select></div>
+ <div><label>車資（可手動修改）</label><input id="fare" type="number" min="0" value="${t?.fare??''}"></div>
+ <div><label>請款對象</label><select id="customer"><option value="">不指定</option>${db.customers.map(c=>`<option value="${esc(c)}" ${t?.customer===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+ </div><button onclick="saveTrip()">儲存紀錄</button>${t?'<button class="secondary" onclick="editing=null;entry()">取消</button>':''}
+ <p class="muted">出發地與目的地可各自選擇下拉選單或手動輸入。符合後台固定路線時會自動帶入價格，仍可手動修改車資。</p></div>`);
+ if(t){
+   if(!origins.includes(fromValue)){ $('fromMode').value='manual';setLocationMode('from'); }
+   if(!destinations.includes(toValue)){ $('toMode').value='manual';setLocationMode('to'); }
+ }
+}
+function locationValue(key){
+ return ($(key+'Mode').value==='manual'?$(key+'Manual').value:$(key+'Select').value).trim();
+}
+function setLocationMode(key){
+ let mode=$(key+'Mode').value,sel=$(key+'Select'),manual=$(key+'Manual');
+ let current=(sel.style.display==='none'?manual.value:sel.value).trim();
+ if(mode==='manual'){manual.value=current;sel.style.display='none';manual.style.display='block';}
+ else{
+   if(current&&!Array.from(sel.options).some(o=>o.value===current)){
+     let op=document.createElement('option');op.value=current;op.textContent=current;sel.appendChild(op);
+   }
+   sel.value=current;sel.style.display='block';manual.style.display='none';
+ }
+ fillPrice();
+}
+function fillPrice(){
+ let f=locationValue('from'),t=locationValue('to'),r=db.routes.find(x=>x.from===f&&x.to===t);
+ if(r)$('fare').value=r.price;
+}
+function saveTrip(){
+ let f=locationValue('from'),t=locationValue('to'),v=Number(fare.value);
+ if(!date.value||!f||!t||fare.value===''||!Number.isFinite(v)||v<0)return alert('請填寫出發地、目的地、日期及有效車資');
+ let o={id:editing||String(Date.now()),date:date.value,from:f,to:t,route:f+'－'+t,task:task.value,fare:v,customer:customer.value,driverId:me.id,driver:me.name};
+ if(editing){let i=db.trips.findIndex(x=>x.id===editing);if(i>=0)db.trips[i]=o}else db.trips.push(o);
+ editing=null;save();alert('已儲存');mine()
+}
+function mine(){
+ let m=today().slice(0,7),a=db.trips.filter(x=>x.driverId===me.id&&x.date.slice(0,7)===m).sort((x,y)=>y.date.localeCompare(x.date));
+ panel(`<div class="card"><h2>我的本月紀錄（${m}）</h2><p>趟次：<b>${a.length}</b>　總金額：<b>${money(a.reduce((s,x)=>s+x.fare,0))}</b></p>
+ <div class="table"><table><tr><th>日期</th><th>類型</th><th>起點－終點</th><th>請款對象</th><th>金額</th><th>操作</th></tr>
+ ${a.map(x=>`<tr><td>${x.date}</td><td>${esc(x.task)}</td><td>${esc(x.from)}－${esc(x.to)}</td><td>${esc(x.customer)}</td><td>${money(x.fare)}</td><td><button onclick="editing='${x.id}';entry()">修改</button><button class="danger" onclick="delTrip('${x.id}')">刪除</button></td></tr>`).join('')}</table></div></div>`)
+}
+function delTrip(id){let trip=db.trips.find(x=>x.id===id);if(!trip)return alert('找不到這筆紀錄。');if(me.role!=='admin'&&trip.driverId!==me.id)return alert('只能刪除自己的乘車紀錄。');if(confirm(`確定刪除 ${trip.driver}｜${trip.date}｜${trip.from}－${trip.to}｜${money(trip.fare)} 這筆紀錄？刪除後無法復原。`)){db.trips=db.trips.filter(x=>x.id!==id);save();if(me.role==='admin')reportRows('month');else mine()}}
+function report(){
+ panel(`<div class="card"><h2>月結與報表</h2><div class="grid">
+ <div><label>月份</label><input id="month" type="month" value="${today().slice(0,7)}"></div>
+ <div><label>指定司機（可選）</label><select id="driverFilter"><option value="">全體司機</option>${db.users.filter(x=>x.role==='driver').map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></div>
+ <div><label>起始日期（區間查詢）</label><input id="startDate" type="date"></div>
+ <div><label>結束日期（區間查詢）</label><input id="endDate" type="date"></div>
+ </div><button onclick="reportRows('month')">查詢指定月份</button><button class="secondary" onclick="reportRows('range')">查詢日期區間</button><div id="reportRows"></div></div>`);
+ reportRows('month')
+}
+function reportRows(mode){
+ let a=db.trips.slice(),m=month.value,df=driverFilter.value;
+ if(mode==='range'){if(startDate.value)a=a.filter(x=>x.date>=startDate.value);if(endDate.value)a=a.filter(x=>x.date<=endDate.value);if(startDate.value&&endDate.value&&startDate.value>endDate.value)return alert('起始日期不可晚於結束日期')}
+ else a=a.filter(x=>x.date.startsWith(m));
+ if(df)a=a.filter(x=>x.driverId===df);
+ let groups={};a.forEach(x=>(groups[x.driver]??=[]).push(x));
+ let rows=Object.entries(groups).map(([n,x])=>`<tr><td>${esc(n)}</td><td>${x.length}</td><td>${money(x.reduce((s,t)=>s+t.fare,0))}</td></tr>`).join('');
+ let label=mode==='range'?`${startDate.value||'不限'} 至 ${endDate.value||'不限'}`:m;
+ document.getElementById('reportRows').innerHTML=`<h3>${label}${df?'｜個別司機':''}</h3><p>總趟次：<b>${a.length}</b>　總金額：<b>${money(a.reduce((s,x)=>s+x.fare,0))}</b></p>
+ <div class="table"><table><tr><th>司機</th><th>趟次</th><th>總金額</th></tr>${rows||'<tr><td colspan="3">此條件沒有紀錄</td></tr>'}</table></div>
+ <h3>紀錄明細</h3><p class="muted">最高管理者可協助刪除任何司機的錯誤紀錄；刪除後無法復原，請先確認。</p>
+ <div class="table"><table><tr><th>日期</th><th>司機</th><th>路線</th><th>請款對象</th><th>車資</th><th>操作</th></tr>${a.sort((x,y)=>y.date.localeCompare(x.date)).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.driver)}</td><td>${esc(x.from)}－${esc(x.to)}</td><td>${esc(x.customer)}</td><td>${money(x.fare)}</td><td><button class="danger" onclick="delTrip('${x.id}')">刪除</button></td></tr>`).join('')||'<tr><td colspan="6">此條件沒有紀錄</td></tr>'}</table></div>
+ <button onclick="exportCSV('${mode}')">下載報表（Excel 可開啟 CSV）</button>`;
+}
+function exportCSV(mode){
+ let a=db.trips.slice(),df=driverFilter.value;
+ if(mode==='range'){if(startDate.value)a=a.filter(x=>x.date>=startDate.value);if(endDate.value)a=a.filter(x=>x.date<=endDate.value)}
+ else a=a.filter(x=>x.date.startsWith(month.value));
+ if(df)a=a.filter(x=>x.driverId===df);
+ let rows=[['日期','司機','任務類型','起點','終點','請款對象','車資'],...a.map(x=>[x.date,x.driver,x.task,x.from,x.to,x.customer,x.fare])];
+ let csv='\ufeff'+rows.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ let u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),z=document.createElement('a');
+ z.href=u;z.download='順心車行_報表_'+(mode==='range'?'日期區間':month.value)+'.csv';z.click();URL.revokeObjectURL(u)
+}
+function backup(){
+ if(me.role!=='admin')return alert('只有最高管理者可以備份或還原全部資料。');
+ panel(`<div class="card"><h2>資料備份／還原</h2>
+ <p>備份包含司機帳號、密碼、固定路線、請款對象、乘車紀錄及密碼重設申請。</p>
+ <button onclick="downloadBackup()">下載完整備份檔（JSON）</button>
+ <hr><h3>還原備份</h3><p class="notice">還原會以備份檔內容取代目前這個瀏覽器的全部資料。請先下載目前資料備份，再進行還原。</p>
+ <label>選擇先前下載的順心車行備份檔</label><input id="backupFile" type="file" accept=".json,application/json">
+ <button class="danger" onclick="restoreBackup()">上傳並還原資料</button>
+ <p class="muted">提醒：目前仍是瀏覽器本機儲存。不同手機的資料不會自動同步；每次更新前建議先下載完整備份。</p></div>`)
+}
+function downloadBackup(){
+ if(me.role!=='admin')return alert('只有最高管理者可以執行完整備份。');
+ save();let data={app:'shunxin-accounting',version:'3.3',exportedAt:new Date().toISOString(),data:db};
+ let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='順心車行_完整備份_'+today()+'.json';a.click();URL.revokeObjectURL(url);alert('完整備份已下載，請妥善保存檔案。');
+}
+function restoreBackup(){
+ if(me.role!=='admin')return alert('只有最高管理者可以還原資料。');
+ let file=$('backupFile').files[0];if(!file)return alert('請先選擇 JSON 備份檔。');
+ let reader=new FileReader();reader.onload=()=>{try{
+  let parsed=JSON.parse(reader.result),incoming=parsed.data||parsed;
+  if(!incoming||!Array.isArray(incoming.users)||!Array.isArray(incoming.trips)||!Array.isArray(incoming.routes)||!Array.isArray(incoming.customers))throw new Error('格式不符');
+  if(!incoming.users.some(x=>x.role==='admin'))throw new Error('備份檔沒有最高管理者帳號');
+  if(!confirm(`即將還原備份：${incoming.users.length} 個帳號、${incoming.trips.length} 筆乘車紀錄。這會取代目前瀏覽器的全部資料，確定繼續嗎？`))return;
+  db={...incoming,resetRequests:Array.isArray(incoming.resetRequests)?incoming.resetRequests:[]};save();
+  me=db.users.find(x=>x.id===me.id)||db.users.find(x=>x.role==='admin');
+  $('session').textContent=me.name+'｜'+roleName(me.role);alert('資料還原完成。');build();
+ }catch(e){alert('無法還原：檔案格式錯誤或不是順心車行完整備份檔。');}};
+ reader.readAsText(file,'UTF-8');
+}
+function requestPasswordReset(){
+ let username=$('user').value.trim();
+ if(!username){$('msg').textContent='請先在帳號欄輸入你的登入帳號，再申請重設密碼。';return;}
+ let account=db.users.find(x=>x.username.toLowerCase()===username.toLowerCase());
+ if(!account){$('msg').textContent='找不到這個帳號，請確認帳號是否輸入正確。';return;}
+ if(db.resetRequests.some(x=>x.userId===account.id&&x.status==='pending')){
+   $('msg').textContent='已經有一筆待處理的重設申請，請聯絡管理者。';return;
+ }
+ db.resetRequests.push({id:'r'+Date.now(),userId:account.id,username:account.username,name:account.name,requestedAt:new Date().toLocaleString('zh-TW'),status:'pending'});
+ save();$('msg').textContent='重設申請已建立。請聯絡最高管理者於後台核准並設定臨時密碼。';
+}
+function settings(){
+ panel(`<div class="card"><h2>帳號設定</h2><p>目前帳號：<b>${esc(me.username)}</b>　姓名：${esc(me.name)}</p>
+ <h3>修改登入密碼</h3><label>目前密碼</label><input id="oldPassword" type="password" autocomplete="current-password">
+ <label>新密碼</label><input id="newPassword" type="password" autocomplete="new-password">
+ <label>再次輸入新密碼</label><input id="confirmPassword" type="password" autocomplete="new-password">
+ <button onclick="changePassword()">確認修改密碼</button>
+ <p class="muted">忘記密碼時，請回到登入頁輸入帳號並點選「忘記密碼／申請重設」，由最高管理者核准。</p></div>`);
+}
+function changePassword(){
+ let old=$('oldPassword').value,n=$('newPassword').value,c=$('confirmPassword').value;
+ if(old!==me.password)return alert('目前密碼不正確。');
+ if(n.length<4)return alert('新密碼至少需要 4 個字元。');
+ if(n!==c)return alert('兩次輸入的新密碼不一致。');
+ me.password=n;let u=db.users.find(x=>x.id===me.id);if(u)u.password=n;
+ save();alert('密碼已修改，請妥善保管。');settings();
+}
+function resetPassword(userId){
+ let req=db.resetRequests.find(x=>x.id===userId),account=req&&db.users.find(x=>x.id===req.userId);
+ if(!req||!account)return alert('找不到這筆申請。');
+ let temp=prompt('請設定給 '+account.name+' 的臨時密碼（至少 4 個字元）');
+ if(temp===null)return;
+ if(temp.length<4)return alert('臨時密碼至少需要 4 個字元。');
+ account.password=temp;req.status='completed';req.completedAt=new Date().toLocaleString('zh-TW');req.completedBy=me.username;
+ save();users();alert('已設定臨時密碼，請安全地通知該司機。');
+}
+function dismissReset(userId){
+ if(!confirm('確定駁回這筆密碼重設申請？'))return;
+ let req=db.resetRequests.find(x=>x.id===userId);if(req){req.status='rejected';req.completedAt=new Date().toLocaleString('zh-TW');}
+ save();users();
+}
+function users(){
+ panel(`<div class="card"><h2>新增帳號與權限</h2><div class="grid">
+ <div><label>姓名</label><input id="nName"></div><div><label>登入帳號</label><input id="nUser"></div>
+ <div><label>密碼</label><input id="nPass" type="password"></div>
+ <div><label>權限</label><select id="nRole"><option value="driver">司機（新增及管理自己的紀錄）</option><option value="viewer">報表檢視者（只能讀取及下載報表）</option></select></div>
+ </div><button onclick="addUser()">新增帳號</button><h3>帳號清單</h3>
+ <div class="table"><table><tr><th>姓名</th><th>帳號</th><th>權限</th><th>操作</th></tr>
+ ${db.users.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.username)}</td><td>${roleName(x.role)}</td><td>${x.role==='admin'?'最高管理者':`<button class="danger" onclick="deleteUser('${x.id}')">刪除</button>`}</td></tr>`).join('')}</table></div>
+ <h3>密碼重設申請</h3>
+ ${db.resetRequests.filter(r=>r.status==='pending').map(r=>`<div class="card"><b>${esc(r.name)}</b>（${esc(r.username)}）<p class="muted">申請時間：${esc(r.requestedAt)}</p><button onclick="resetPassword('${r.id}')">核准並設定臨時密碼</button><button class="danger" onclick="dismissReset('${r.id}')">駁回申請</button></div>`).join('')||'<p class="muted">目前沒有待處理的密碼重設申請。</p>'}
+ <p class="muted">司機只能新增、修改及刪除自己的乘車紀錄；最高管理者可在報表明細協助刪除任何司機的錯誤紀錄；報表檢視者只能讀取及下載報表。</p></div>`)
+}
+function addUser(){
+ let name=nName.value.trim(),username=nUser.value.trim(),password=nPass.value,role=nRole.value;
+ if(!name||!username||!password)return alert('請填妥姓名、帳號及密碼');
+ if(db.users.some(x=>x.username.toLowerCase()===username.toLowerCase()))return alert('此登入帳號已存在');
+ db.users.push({id:'u'+Date.now(),name,username,password,role});save();users()
+}
+function deleteUser(id){if(!confirm('刪除此帳號？既有乘車紀錄會保留。'))return;db.users=db.users.filter(x=>x.id!==id);save();users()}
+function routes(){
+ panel(`<div class="card"><h2>固定路線與價格</h2><div class="grid">
+ <div><label>出發地</label><input id="rf" placeholder="例如：竹東火車站"></div>
+ <div><label>目的地</label><input id="rt" placeholder="例如：新竹高鐵站"></div>
+ <div><label>固定車資</label><input id="rp" type="number" min="0" placeholder="金額"></div></div>
+ <button onclick="addRoute()">新增固定路線</button><h3>已設定路線</h3>
+ ${db.routes.map((r,i)=>`<p>${esc(r.from)} → ${esc(r.to)}：${money(r.price)} <button class="danger" onclick="deleteRoute(${i})">刪除</button></p>`).join('')||'<p class="muted">尚未設定固定路線。</p>'}
+ </div>`)
+}
+function addRoute(){
+ let f=rf.value.trim(),t=rt.value.trim(),p=rp.value;
+ if(!f||!t||p===''||!Number.isFinite(Number(p))||Number(p)<0)return alert('請填妥出發地、目的地及有效車資');
+ if(db.routes.some(r=>r.from===f&&r.to===t))return alert('這條固定路線已存在');
+ db.routes.push({from:f,to:t,price:Number(p)});save();routes()
+}
+function deleteRoute(i){if(confirm('確定刪除此固定路線？既有乘車紀錄不會受影響。')){db.routes.splice(i,1);save();routes()}}
+function customers(){
+ panel(`<div class="card"><h2>請款對象管理</h2><label>新增名稱</label><input id="cn"><button onclick="if(cn.value.trim()&&!db.customers.includes(cn.value.trim())){db.customers.push(cn.value.trim());save();customers()}">新增</button>${db.customers.map((x,i)=>`<p>${esc(x)} <button class="danger" onclick="db.customers.splice(${i},1);save();customers()">刪除</button></p>`).join('')}</div>`)
+}
+save();
+</script>
+</body></html>
